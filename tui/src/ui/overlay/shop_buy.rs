@@ -1,6 +1,7 @@
 use crate::app::{AppState, ShopSlot, WidgetId};
+use crate::ui::cards::{rank_str, suit_char};
 use crate::ui::overlay::centered_rect;
-use crate::ui::overlay::inspect::{consumable_lines, joker_lines, pack_lines};
+use crate::ui::overlay::inspect::{card_lines, consumable_lines, joker_lines, pack_lines, voucher_lines};
 use ratatui::{
     layout::Rect,
     style::{Color, Modifier, Style},
@@ -106,7 +107,7 @@ fn item_info(app: &AppState, slot: ShopSlot, w: u16) -> Option<(String, usize, V
             let joker = app.game.shop.jokers.get(idx)?;
             Some((
                 format!(" {} ", joker.name()),
-                joker.cost(),
+                app.game.price(joker.cost()),
                 joker_lines(joker, w),
             ))
         }
@@ -114,13 +115,31 @@ fn item_info(app: &AppState, slot: ShopSlot, w: u16) -> Option<(String, usize, V
             let c = app.game.shop.consumables.get(idx)?;
             Some((
                 format!(" {} ", c.name()),
-                c.cost(),
+                app.game.price(c.cost()),
                 consumable_lines(c, w),
             ))
         }
         ShopSlot::Pack(idx) => {
             let pack = app.game.shop.packs.get(idx)?;
-            Some((format!(" {} ", pack.name()), pack.cost(), pack_lines(pack, w)))
+            Some((
+                format!(" {} ", pack.name()),
+                app.game.price(pack.cost()),
+                pack_lines(pack, w),
+            ))
+        }
+        ShopSlot::Voucher => {
+            // Vouchers are never discounted by Clearance Sale / Liquidation.
+            let voucher = app.game.shop.voucher?;
+            Some((
+                format!(" {} ", voucher.name()),
+                voucher.cost(),
+                voucher_lines(&voucher, w),
+            ))
+        }
+        ShopSlot::PlayingCard(idx) => {
+            let card = app.game.shop.cards.get(idx)?;
+            let title = format!(" {} of {}s ", rank_str(card.value), suit_char(card.suit));
+            Some((title, app.game.price(card.shop_cost()), card_lines(card)))
         }
     }
 }

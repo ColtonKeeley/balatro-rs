@@ -63,13 +63,13 @@ variable-length iterator.
 - [x] ante progression (1-8) and blind progression (small/big/boss)
 - [x] buying/selling/using jokers, tarots, planets and spectrals
 - [x] card enhancements, editions, and seals in effect
+- [x] vouchers (see [`docs/vouchers.md`](docs/vouchers.md) for per-voucher status)
 - [x] 74/150 jokers implemented so far
 
 The following are missing and may or may not be added:
 
 - [ ] skip blind/tags
 - [ ] boss blind modifiers
-- [ ] vouchers
 - [ ] alternative decks
 - [ ] alternative stakes
 
