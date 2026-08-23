@@ -1,22 +1,5 @@
-//! Vouchers — run-long shop upgrades.
-//!
-//! One voucher is offered per ante. It sits in its own shop slot, survives
-//! rerolls, and stays on offer for every shop of that ante until bought.
-//! Buying it is permanent for the run: there is no sell action.
-//!
-//! The enum itself lives in `balatro-types` (16 base/upgrade pairs, with
-//! `Voucher::requires` naming the base an upgrade is gated behind). This
-//! module adds what `core` needs on top: which vouchers are currently
-//! offerable, and the modifiers an owned set implies.
-//!
-//! Most effects are *derived*, not applied: `Vouchers` answers questions
-//! ("how many consumable slots does the player get?") and callers add the
-//! bonus to their `Config` baseline. That keeps effects idempotent across
-//! save/load and makes double-application impossible. The two exceptions
-//! are the one-shot effects — Hieroglyph/Petroglyph's "-1 Ante" and the
-//! reroll-cost drop — which mutate `Game` at purchase time.
-//!
-//! See `vouchers.md` for per-voucher implementation status.
+//! Effects are derived from the redeemed set on demand, not applied to `Config` in
+//! place, so they can't double-apply across a save/load round trip.
 
 pub use balatro_types::Voucher;
 use strum::IntoEnumIterator;
