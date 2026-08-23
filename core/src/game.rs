@@ -239,8 +239,8 @@ impl Game {
     /// Hand size dealt each round — Paint Brush / Palette raise the
     /// baseline; Manacle (while active) then subtracts one from that.
     pub fn hand_size(&self) -> usize {
-        let base =
-            (self.config.available + self.vouchers.hand_size_bonus()).min(self.config.available_max);
+        let base = (self.config.available + self.vouchers.hand_size_bonus())
+            .min(self.config.available_max);
         if self.active_boss() == Some(BossBlind::Manacle) {
             base.saturating_sub(1)
         } else {
@@ -1135,6 +1135,11 @@ impl Game {
     pub(crate) fn buy_playing_card(&mut self, card: Card) -> Result<(), GameError> {
         if self.stage != Stage::Shop() {
             return Err(GameError::InvalidStage);
+        }
+        if self.deck.len() + self.available.cards().len() + self.discarded.len()
+            >= self.config.deck_max
+        {
+            return Err(GameError::NoAvailableSlot);
         }
         let cost = self.price(card.shop_cost());
         if cost > self.money {
@@ -4517,6 +4522,32 @@ mod tests {
         assert!(g.deck.cards().iter().any(|c| c.id == card.id));
         assert!(!g.shop.cards.iter().any(|c| c.id == card.id));
         assert_eq!(g.money, 100 - card.shop_cost());
+    }
+
+    // regression: `buy_playing_card` didn't check `deck_max` itself
+    #[test]
+    fn test_buy_playing_card_rejects_a_full_deck() {
+        let mut g = game_in_shop(100);
+        redeem(&mut g, Voucher::MagicTrick);
+
+        let mut card = None;
+        for _ in 0..500 {
+            if let Some(c) = g.shop.cards.first().copied() {
+                card = Some(c);
+                break;
+            }
+            g.money = 100;
+            g.reroll().expect("reroll");
+        }
+        let card = card.expect("Magic Trick never produced a shop playing card");
+
+        // Cap the deck at its current size so there's no room left.
+        g.config.deck_max = g.deck.len() + g.available.cards().len() + g.discarded.len();
+        g.money = 100;
+        assert!(matches!(
+            g.handle_action(Action::BuyPlayingCard(card)),
+            Err(GameError::NoAvailableSlot)
+        ));
     }
 
     #[test]
