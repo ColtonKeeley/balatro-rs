@@ -49,8 +49,6 @@ Only three things mutate state at purchase time: Hieroglyph/Petroglyph's
 "-1 Ante", the reroll price drop, and Overstock topping up the live shop.
 Everything else stays derived so save/load can't double-apply it.
 
-`vouchers.md` tracks per-voucher status.
-
 ## Effect system
 
 `EffectRegistry` collects hooks from all active jokers at the start of each scoring pass. Hooks fire at:
