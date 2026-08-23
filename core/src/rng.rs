@@ -416,7 +416,7 @@ impl RngBackend for RealBackend {
         let offer = if vouchers.has(drawn) {
             balatro_seed::voucher_upgrade(drawn).filter(|u| vouchers.is_offerable(*u))
         } else {
-            Some(drawn)
+            Some(drawn).filter(|v| vouchers.is_offerable(*v))
         };
         if let Some(v) = offer {
             self.instance.lock(&v);
@@ -904,6 +904,27 @@ mod tests {
             5,
             "expected all 5 pack categories across 300 draws, saw {seen_categories:?}"
         );
+    }
+
+    // regression: could offer a tier-2 upgrade before its basewas ever redeemed.
+    #[test]
+    fn real_backend_gen_voucher_never_offers_an_ungated_upgrade() {
+        let fast = FastBackend::new(ChaCha8Rng::seed_from_u64(1));
+        let mut backend = RealBackend::new("TESTSEED", fast);
+        let vouchers = Vouchers::new();
+        let mut saw_any = false;
+
+        for ante in 1..=300 {
+            if let Some(v) = backend.gen_voucher(ante, &vouchers) {
+                saw_any = true;
+                assert!(
+                    vouchers.is_offerable(v),
+                    "ante {ante}: offered {v:?} with its base not owned"
+                );
+            }
+        }
+
+        assert!(saw_any, "no voucher drawn across 300 antes");
     }
 
     // `seed_joker_with_id` is `RealBackend`'s equivalent mint chokepoint to
