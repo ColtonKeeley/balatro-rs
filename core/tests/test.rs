@@ -96,6 +96,11 @@ fn test_real_rng_mode_shop_playing_cards() {
 
         let mut bought = 0;
         for _ in 0..200 {
+            // Every purchase grows the deck, stop once it's at `deck_max`
+            // rather than asserting a buy that's correctly rejected.
+            if g.deck.cards().len() >= g.config.deck_max {
+                break;
+            }
             while let Some(card) = g.shop.cards.first().copied() {
                 let deck_before = g.deck.cards().len();
                 g.money = 1000;
@@ -103,6 +108,9 @@ fn test_real_rng_mode_shop_playing_cards() {
                     .expect("buy shop playing card");
                 assert_eq!(g.deck.cards().len(), deck_before + 1);
                 bought += 1;
+                if g.deck.cards().len() >= g.config.deck_max {
+                    break;
+                }
             }
             g.money = 1000;
             g.handle_action(Action::Reroll()).expect("reroll");
