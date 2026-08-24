@@ -1122,14 +1122,16 @@ impl Game {
         }
         // Overstock widens the current shop immediately: top up the new
         // slots rather than making the player wait for the next round.
-        let planetarium = self.planetarium.clone();
-        let mut held = self.consumables.clone();
-        held.extend(self.shop.consumables.clone());
-        let mut held_jokers = self.jokers.clone();
-        held_jokers.extend(self.shop.jokers.clone());
-        let vouchers = self.vouchers.clone();
-        let ctx = self.shop_context(&planetarium, &held, &held_jokers, &vouchers);
-        self.shop.top_up_cards(&ctx, &mut self.backend);
+        if matches!(voucher, Voucher::Overstock | Voucher::OverstockPlus) {
+            let planetarium = self.planetarium.clone();
+            let mut held = self.consumables.clone();
+            held.extend(self.shop.consumables.clone());
+            let mut held_jokers = self.jokers.clone();
+            held_jokers.extend(self.shop.jokers.clone());
+            let vouchers = self.vouchers.clone();
+            let ctx = self.shop_context(&planetarium, &held, &held_jokers, &vouchers);
+            self.shop.top_up_cards(&ctx, &mut self.backend);
+        }
     }
 
     pub(crate) fn buy_playing_card(&mut self, card: Card) -> Result<(), GameError> {
