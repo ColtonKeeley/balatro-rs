@@ -270,7 +270,7 @@ fn render_voucher_for_sale(f: &mut Frame, app: &mut AppState, area: Rect, slot: 
     let Some(voucher) = app.game.shop.voucher else {
         return;
     };
-    let x = area.x + 2 + (slot + 1) as u16 * SLOT_W;
+    let x = area.x + 1 + slot as u16 * SLOT_W;
     if x + CARD_W > area.x + area.width {
         return;
     }
