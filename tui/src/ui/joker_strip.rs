@@ -24,7 +24,7 @@ pub fn render(f: &mut Frame, app: &mut AppState, area: Rect) {
         height: area.height.saturating_sub(1),
     };
 
-    let consumable_total = app.game.config.consumable_slots as u16 * SLOT_W + 2;
+    let consumable_total = app.game.consumable_slots() as u16 * SLOT_W + 2;
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Min(0), Constraint::Length(consumable_total)])
@@ -36,7 +36,8 @@ pub fn render(f: &mut Frame, app: &mut AppState, area: Rect) {
 
 fn render_jokers(f: &mut Frame, app: &mut AppState, area: Rect) {
     let jokers = &app.game.jokers;
-    let slots = app.game.config.joker_slots;
+    // Voucher-adjusted, not the raw config value — Antimatter adds a slot.
+    let slots = app.game.joker_slots();
     let focused = app.focus == FocusZone::JokerStrip;
     let inner_w = (CARD_W as usize).saturating_sub(2);
 
@@ -96,7 +97,8 @@ fn render_jokers(f: &mut Frame, app: &mut AppState, area: Rect) {
 
 fn render_consumables(f: &mut Frame, app: &mut AppState, area: Rect) {
     let consumables = &app.game.consumables;
-    let slots = app.game.config.consumable_slots;
+    // Voucher-adjusted — Crystal Ball adds a slot.
+    let slots = app.game.consumable_slots();
     let focused = app.focus == FocusZone::ConsumableStrip;
     let inner_w = (CARD_W as usize).saturating_sub(2);
 

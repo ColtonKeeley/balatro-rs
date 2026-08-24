@@ -222,6 +222,17 @@ fn execute_shop_buy(app: &mut AppState, slot: ShopSlot) -> bool {
             Some(pack) => app.game.handle_action(Action::BuyPack(pack)).is_ok(),
             None => false,
         },
+        ShopSlot::Voucher => match app.game.shop.voucher {
+            Some(voucher) => app.game.handle_action(Action::BuyVoucher(voucher)).is_ok(),
+            None => false,
+        },
+        ShopSlot::PlayingCard(idx) => match app.game.shop.cards.get(idx).copied() {
+            Some(card) => app
+                .game
+                .handle_action(Action::BuyPlayingCard(card))
+                .is_ok(),
+            None => false,
+        },
     }
 }
 
@@ -509,7 +520,9 @@ fn handle_key_shop(app: &mut AppState, key: KeyEvent) {
 }
 
 fn handle_key_shop_packs(app: &mut AppState, key: KeyEvent) {
-    let count = app.game.shop.packs.len();
+    let pack_count = app.game.shop.packs.len();
+    // The ante's voucher offer occupies one slot past the last pack.
+    let count = pack_count + usize::from(app.game.shop.voucher.is_some());
     match key.code {
         KeyCode::Left => {
             if app.cursor > 0 {
@@ -522,8 +535,11 @@ fn handle_key_shop_packs(app: &mut AppState, key: KeyEvent) {
             }
         }
         KeyCode::Enter => {
-            if app.cursor < count {
+            if app.cursor < pack_count {
                 app.overlay = Some(Overlay::ShopBuy(ShopSlot::Pack(app.cursor)));
+                app.overlay_cursor = 0;
+            } else if app.cursor < count {
+                app.overlay = Some(Overlay::ShopBuy(ShopSlot::Voucher));
                 app.overlay_cursor = 0;
             }
         }
@@ -577,7 +593,8 @@ fn handle_key_pack_contents(app: &mut AppState, key: KeyEvent) {
 fn handle_key_shop_jokers(app: &mut AppState, key: KeyEvent) {
     let joker_count = app.game.shop.jokers.len();
     let consumable_count = app.game.shop.consumables.len();
-    let count = joker_count + consumable_count;
+    // Shop playing cards (Magic Trick) share this row, after the rest.
+    let count = joker_count + consumable_count + app.game.shop.cards.len();
     match key.code {
         KeyCode::Left => {
             if app.cursor > 0 {
@@ -593,9 +610,14 @@ fn handle_key_shop_jokers(app: &mut AppState, key: KeyEvent) {
             if app.cursor < joker_count {
                 app.overlay = Some(Overlay::ShopBuy(ShopSlot::Joker(app.cursor)));
                 app.overlay_cursor = 0;
-            } else if app.cursor < count {
+            } else if app.cursor < joker_count + consumable_count {
                 app.overlay = Some(Overlay::ShopBuy(ShopSlot::Consumable(
                     app.cursor - joker_count,
+                )));
+                app.overlay_cursor = 0;
+            } else if app.cursor < count {
+                app.overlay = Some(Overlay::ShopBuy(ShopSlot::PlayingCard(
+                    app.cursor - joker_count - consumable_count,
                 )));
                 app.overlay_cursor = 0;
             }
@@ -694,20 +716,28 @@ fn open_inspect(app: &mut AppState) {
         }
         FocusZone::ShopJokers => {
             let joker_count = app.game.shop.jokers.len();
+            let consumable_count = app.game.shop.consumables.len();
             if app.cursor < joker_count {
                 if let Some(joker) = app.game.shop.jokers.get(app.cursor) {
                     app.overlay = Some(Overlay::Inspect(InspectTarget::Joker(joker.clone())));
                 }
-            } else {
+            } else if app.cursor < joker_count + consumable_count {
                 let ci = app.cursor - joker_count;
                 if let Some(c) = app.game.shop.consumables.get(ci) {
                     app.overlay = Some(Overlay::Inspect(InspectTarget::Consumable(*c)));
+                }
+            } else {
+                let di = app.cursor - joker_count - consumable_count;
+                if let Some(card) = app.game.shop.cards.get(di) {
+                    app.overlay = Some(Overlay::Inspect(InspectTarget::Card(*card)));
                 }
             }
         }
         FocusZone::ShopPacks => {
             if let Some(pack) = app.game.shop.packs.get(app.cursor) {
                 app.overlay = Some(Overlay::Inspect(InspectTarget::Pack(pack.clone())));
+            } else if let Some(voucher) = app.game.shop.voucher {
+                app.overlay = Some(Overlay::Inspect(InspectTarget::Voucher(voucher)));
             }
         }
         FocusZone::PackContents => {
@@ -815,6 +845,22 @@ fn dispatch_mouse_click(app: &mut AppState, id: crate::app::WidgetId) {
             app.cursor = app.game.shop.jokers.len() + idx;
             if idx < app.game.shop.consumables.len() {
                 app.overlay = Some(Overlay::ShopBuy(ShopSlot::Consumable(idx)));
+                app.overlay_cursor = 0;
+            }
+        }
+        ShopCard(idx) => {
+            app.focus = FocusZone::ShopJokers;
+            app.cursor = app.game.shop.jokers.len() + app.game.shop.consumables.len() + idx;
+            if idx < app.game.shop.cards.len() {
+                app.overlay = Some(Overlay::ShopBuy(ShopSlot::PlayingCard(idx)));
+                app.overlay_cursor = 0;
+            }
+        }
+        ShopVoucher => {
+            app.focus = FocusZone::ShopPacks;
+            app.cursor = app.game.shop.packs.len();
+            if app.game.shop.voucher.is_some() {
+                app.overlay = Some(Overlay::ShopBuy(ShopSlot::Voucher));
                 app.overlay_cursor = 0;
             }
         }
@@ -957,5 +1003,125 @@ fn dispatch_mouse_click(app: &mut AppState, id: crate::app::WidgetId) {
 
     if app.game.stage != prev_stage || app.game.blind != prev_blind {
         app.sync_focus_to_stage();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::WidgetId;
+    use balatro_rs::game::Game;
+    use balatro_rs::voucher::Voucher;
+
+    fn key(code: KeyCode) -> KeyEvent {
+        KeyEvent::new(code, crossterm::event::KeyModifiers::NONE)
+    }
+
+    /// A game parked in a stocked shop with a known voucher on offer and
+    /// money to spend.
+    fn shop_app(voucher: Voucher) -> AppState {
+        let mut game = Game::default();
+        game.start();
+        game.stage = Stage::PostBlind();
+        game.handle_action(Action::CashOut(0)).expect("cash out");
+        game.money = 100;
+        game.shop.voucher = Some(voucher);
+        let mut app = AppState::new(game);
+        app.sync_focus_to_stage();
+        app
+    }
+
+    #[test]
+    fn test_voucher_is_the_last_slot_of_the_packs_zone() {
+        let mut app = shop_app(Voucher::Overstock);
+        app.focus = FocusZone::ShopPacks;
+        app.cursor = 0;
+
+        // Two packs plus the voucher — the cursor can reach index 2 and stops.
+        for _ in 0..5 {
+            handle_key(&mut app, key(KeyCode::Right));
+        }
+        assert_eq!(app.cursor, app.game.shop.packs.len());
+
+        handle_key(&mut app, key(KeyCode::Enter));
+        assert!(matches!(app.overlay, Some(Overlay::ShopBuy(ShopSlot::Voucher))));
+        handle_key(&mut app, key(KeyCode::Enter));
+        assert!(app.game.vouchers.has(Voucher::Overstock));
+        assert_eq!(app.game.shop.voucher, None);
+    }
+
+    #[test]
+    fn test_clicking_the_voucher_buys_it() {
+        let mut app = shop_app(Voucher::Grabber);
+        dispatch_mouse_click(&mut app, WidgetId::ShopVoucher);
+        assert!(matches!(app.overlay, Some(Overlay::ShopBuy(ShopSlot::Voucher))));
+        handle_key(&mut app, key(KeyCode::Enter));
+        assert!(app.game.vouchers.has(Voucher::Grabber));
+    }
+
+    #[test]
+    fn test_inspecting_the_voucher_opens_its_overlay() {
+        use crate::app::InspectTarget;
+        let mut app = shop_app(Voucher::Telescope);
+        app.focus = FocusZone::ShopPacks;
+        app.cursor = app.game.shop.packs.len();
+
+        handle_key(&mut app, key(KeyCode::Char('i')));
+        assert!(matches!(
+            app.overlay,
+            Some(Overlay::Inspect(InspectTarget::Voucher(Voucher::Telescope)))
+        ));
+    }
+
+    // The bug this guards: per-round counters used to be set only when a
+    // blind was *finished*, so a voucher bought in the shop afterwards
+    // showed no effect on the very next blind. Driven through the real key
+    // handlers, since that is where it was reported from.
+    #[test]
+    fn test_grabber_bought_in_shop_shows_up_on_the_next_blind() {
+        let mut app = shop_app(Voucher::Grabber);
+        let base_plays = app.game.config.plays;
+
+        app.focus = FocusZone::ShopPacks;
+        app.cursor = app.game.shop.packs.len();
+        handle_key(&mut app, key(KeyCode::Enter));
+        handle_key(&mut app, key(KeyCode::Enter));
+        assert!(app.game.vouchers.has(Voucher::Grabber));
+
+        handle_key(&mut app, key(KeyCode::Char('n'))); // next round
+        assert_eq!(app.game.stage, Stage::PreBlind());
+        handle_key(&mut app, key(KeyCode::Enter)); // select the small blind
+
+        assert!(matches!(app.game.stage, Stage::Blind(_)));
+        assert_eq!(app.game.plays, base_plays + 1);
+    }
+
+    #[test]
+    fn test_magic_trick_cards_are_buyable_from_the_cards_zone() {
+        let mut app = shop_app(Voucher::MagicTrick);
+        app.focus = FocusZone::ShopPacks;
+        app.cursor = app.game.shop.packs.len();
+        handle_key(&mut app, key(KeyCode::Enter));
+        handle_key(&mut app, key(KeyCode::Enter));
+        assert!(app.game.vouchers.has(Voucher::MagicTrick));
+
+        // Reroll until a playing card shows up in a shop slot.
+        let mut card = None;
+        for _ in 0..500 {
+            if let Some(c) = app.game.shop.cards.first().copied() {
+                card = Some(c);
+                break;
+            }
+            app.game.money = 100;
+            let _ = app.game.handle_action(Action::Reroll());
+        }
+        let card = card.expect("Magic Trick never produced a shop playing card");
+
+        app.game.money = 100;
+        app.focus = FocusZone::ShopJokers;
+        app.cursor = app.game.shop.jokers.len() + app.game.shop.consumables.len();
+        handle_key(&mut app, key(KeyCode::Enter));
+        handle_key(&mut app, key(KeyCode::Enter));
+        assert!(app.game.deck.cards().iter().any(|c| c.id == card.id));
     }
 }

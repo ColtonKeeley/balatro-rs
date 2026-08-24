@@ -172,6 +172,33 @@ pub(crate) fn pack_lines(pack: &Pack, w: u16) -> Vec<Line<'static>> {
     lines
 }
 
+pub(crate) fn voucher_lines(voucher: &balatro_rs::voucher::Voucher, w: u16) -> Vec<Line<'static>> {
+    let mut lines = vec![
+        Line::from(""),
+        Line::from(vec![
+            Span::raw("  Cost:  "),
+            Span::styled(
+                format!("${}", voucher.cost()),
+                Style::default().fg(Color::Yellow),
+            ),
+        ]),
+    ];
+    if let Some(base) = voucher.requires() {
+        lines.push(Line::from(vec![
+            Span::raw("  Needs: "),
+            Span::styled(base.name().to_string(), Style::default().fg(Color::Cyan)),
+        ]));
+    }
+    lines.push(Line::from(""));
+    for word_line in wrap(voucher.description(), w as usize - 4) {
+        lines.push(Line::from(Span::styled(
+            format!("  {}", word_line),
+            Style::default().fg(Color::White),
+        )));
+    }
+    lines
+}
+
 pub fn render(f: &mut Frame, app: &mut AppState, area: Rect, target: InspectTarget) {
     let w: u16 = 44;
     let h: u16 = 18;
@@ -199,6 +226,12 @@ pub fn render(f: &mut Frame, app: &mut AppState, area: Rect, target: InspectTarg
         InspectTarget::Pack(pack) => {
             let title = format!(" {} ", pack.name());
             let mut lines = pack_lines(&pack, w);
+            lines.push(Line::from(""));
+            (title, lines)
+        }
+        InspectTarget::Voucher(voucher) => {
+            let title = format!(" {} ", voucher.name());
+            let mut lines = voucher_lines(&voucher, w);
             lines.push(Line::from(""));
             (title, lines)
         }

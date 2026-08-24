@@ -136,7 +136,7 @@ impl TarotEffect for Tarot {
                 }
             }
             Self::HighPriestess => {
-                let slots = game.config.consumable_slots;
+                let slots = game.consumable_slots();
                 for _ in 0..2 {
                     if game.consumables.len() >= slots {
                         break;
@@ -147,7 +147,7 @@ impl TarotEffect for Tarot {
                 }
             }
             Self::Emperor => {
-                let slots = game.config.consumable_slots;
+                let slots = game.consumable_slots();
                 let mut excl: Vec<Tarot> = game
                     .consumables
                     .iter()
@@ -171,7 +171,7 @@ impl TarotEffect for Tarot {
                 }
             }
             Self::Judgement => {
-                if game.jokers.len() < game.config.joker_slots {
+                if game.jokers.len() < game.joker_slots() {
                     let prob_mult = game.prob_mult;
                     let exclude = game.jokers.clone();
                     let ante = game.ante_current as i32;
@@ -181,7 +181,7 @@ impl TarotEffect for Tarot {
             }
             Self::Fool => {
                 if let Some(last) = game.last_consumable_used {
-                    if game.consumables.len() < game.config.consumable_slots {
+                    if game.consumables.len() < game.consumable_slots() {
                         game.consumables.push(last);
                     }
                 }
