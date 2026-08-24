@@ -384,7 +384,7 @@ impl RngBackend for RealBackend {
             balatro_seed::ShopItem::Consumable(c) => GeneratedItem::Consumable(c),
             balatro_seed::ShopItem::PlayingCard => {
                 GeneratedItem::PlayingCard(gen_shop_playing_card(
-                    1,
+                    ctx.edition_prob_mult(),
                     ctx.vouchers.shop_cards_are_modified(),
                     &mut self.extra_rng,
                 ))
@@ -906,7 +906,7 @@ mod tests {
         );
     }
 
-    // regression: could offer a tier-2 upgrade before its basewas ever redeemed.
+    // regression: could offer a tier-2 upgrade before its base was ever redeemed.
     #[test]
     fn real_backend_gen_voucher_never_offers_an_ungated_upgrade() {
         let fast = FastBackend::new(ChaCha8Rng::seed_from_u64(1));
